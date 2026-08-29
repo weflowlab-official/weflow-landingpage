@@ -4,5 +4,5 @@ export const SITE: string = 'landingpage'
 export const SITE_LABEL: Record<string, string> = {
   weflow: '본 사이트',
   landingpage: '랜딩페이지',
-  landinghomepage: '랜딩홈페이지',
+  landinghomepage: '랜딩형 홈페이지',
 }
