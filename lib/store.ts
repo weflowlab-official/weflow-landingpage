@@ -3,6 +3,10 @@
 // DB는 snake_case, 앱은 camelCase — 사이의 변환은 각 to*() 함수가 담당한다.
 
 import { getSql } from './db'
+import { SITE } from './site'
+
+// 본 사이트는 모든 사이트의 문의·예약을 한곳에서 본다. 랜딩페이지는 자기 것만.
+const SEE_ALL_SITES = SITE === 'weflow'
 
 // 예약 1건 — bookings 테이블 한 행
 export interface Booking {
@@ -15,6 +19,7 @@ export interface Booking {
   note: string
   date: string
   time: string
+  site?: string
   createdAt: string
 }
 
@@ -29,6 +34,7 @@ export interface Inquiry {
   note: string
   source?: string
   agree: boolean
+  site?: string
   createdAt: string
 }
 
@@ -49,6 +55,7 @@ function toBooking(row: Record<string, unknown>): Booking {
     note: (row.note as string) || '',
     date: row.date as string,
     time: row.time as string,
+    site: (row.site as string) || 'weflow',
     createdAt: toIso(row.created_at),
   }
 }
@@ -64,6 +71,7 @@ function toInquiry(row: Record<string, unknown>): Inquiry {
     note: (row.note as string) || '',
     source: (row.source as string) || 'web',
     agree: (row.agree as boolean) || false,
+    site: (row.site as string) || 'weflow',
     createdAt: toIso(row.created_at),
   }
 }
@@ -71,16 +79,18 @@ function toInquiry(row: Record<string, unknown>): Inquiry {
 export const bookingStore = {
   getAll: async (): Promise<Booking[]> => {
     const sql = getSql()
-    const rows = await sql`SELECT * FROM bookings ORDER BY created_at DESC`
+    const rows = SEE_ALL_SITES
+      ? await sql`SELECT * FROM bookings ORDER BY created_at DESC`
+      : await sql`SELECT * FROM bookings WHERE site = ${SITE} ORDER BY created_at DESC`
     return rows.map(toBooking)
   },
 
   create: async (input: Omit<Booking, 'id' | 'status' | 'createdAt'>): Promise<Booking> => {
     const sql = getSql()
     const rows = await sql`
-      INSERT INTO bookings (status, name, phone, type, industry, note, date, time)
+      INSERT INTO bookings (status, name, phone, type, industry, note, date, time, site)
       VALUES ('pending', ${input.name}, ${input.phone}, ${input.type},
-              ${input.industry ?? ''}, ${input.note ?? ''}, ${input.date}, ${input.time})
+              ${input.industry ?? ''}, ${input.note ?? ''}, ${input.date}, ${input.time}, ${SITE})
       RETURNING *`
     return toBooking(rows[0])
   },
@@ -111,6 +121,7 @@ export interface PageView {
   device: string
   durationMs: number | null
   maxScroll: number | null
+  site?: string
   createdAt: string
 }
 
@@ -126,6 +137,7 @@ function toPageView(row: Record<string, unknown>): PageView {
     device: (row.device as string) || 'desktop',
     durationMs: (row.duration_ms as number) ?? null,
     maxScroll: (row.max_scroll as number) ?? null,
+    site: (row.site as string) || 'weflow',
     createdAt: toIso(row.created_at),
   }
 }
@@ -137,7 +149,7 @@ export const pageViewStore = {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
     const rows = await sql`
       SELECT * FROM page_views
-      WHERE created_at >= ${since}
+      WHERE created_at >= ${since} AND site = ${SITE}
       ORDER BY created_at ASC, id ASC`
     return rows.map(toPageView)
   },
@@ -148,9 +160,9 @@ export const pageViewStore = {
   }): Promise<{ id: string }> => {
     const sql = getSql()
     const rows = await sql`
-      INSERT INTO page_views (session_id, path, referrer, source, medium, campaign, device)
+      INSERT INTO page_views (session_id, path, referrer, source, medium, campaign, device, site)
       VALUES (${input.sessionId}, ${input.path}, ${input.referrer},
-              ${input.source}, ${input.medium}, ${input.campaign}, ${input.device})
+              ${input.source}, ${input.medium}, ${input.campaign}, ${input.device}, ${SITE})
       RETURNING id`
     return { id: rows[0].id as string }
   },
@@ -169,16 +181,18 @@ export const pageViewStore = {
 export const inquiryStore = {
   getAll: async (): Promise<Inquiry[]> => {
     const sql = getSql()
-    const rows = await sql`SELECT * FROM inquiries ORDER BY created_at DESC`
+    const rows = SEE_ALL_SITES
+      ? await sql`SELECT * FROM inquiries ORDER BY created_at DESC`
+      : await sql`SELECT * FROM inquiries WHERE site = ${SITE} ORDER BY created_at DESC`
     return rows.map(toInquiry)
   },
 
   create: async (input: Omit<Inquiry, 'id' | 'status' | 'createdAt'>): Promise<Inquiry> => {
     const sql = getSql()
     const rows = await sql`
-      INSERT INTO inquiries (status, name, phone, type, industry, note, source, agree)
+      INSERT INTO inquiries (status, name, phone, type, industry, note, source, agree, site)
       VALUES ('pending', ${input.name}, ${input.phone}, ${input.type},
-              ${input.industry ?? ''}, ${input.note ?? ''}, ${input.source ?? 'web'}, ${input.agree ?? false})
+              ${input.industry ?? ''}, ${input.note ?? ''}, ${input.source ?? 'web'}, ${input.agree ?? false}, ${SITE})
       RETURNING *`
     return toInquiry(rows[0])
   },
